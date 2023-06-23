@@ -8,12 +8,115 @@
 // The position,speed and acc of the motor is controlled at 1Khz (called in the main loop)
 
 
-ISR(TIMER3_OVF_vect) // replace x by the proper timer
+ISR(TIMER3_COMPA_vect) // replace x by the proper timer
 {
-	
+  // Serial.println("timer3");
+  // if(dir_M1 == 0) {
+  //   return;
+  // }
+  MOTOR_M1_STEP_PORT |= 1 << MOTOR_M1_STEP_MASK;
+  // digitalWrite(MOTOR_M1_STEP, HIGH);
+  position_M1 += dir_M1;
+  delayMicroseconds(1);
+  MOTOR_M1_STEP_PORT &= ~(1 << MOTOR_M1_STEP_MASK);
+  // digitalWrite(MOTOR_M1_STEP, LOW);
+}
+
+ISR(TIMER4_COMPA_vect)
+{
+  // if(dir_M2 == 0) {
+  //   return;
+  // }
+  // Serial.println("timer4");
+  MOTOR_M2_STEP_PORT |= 1 << MOTOR_M2_STEP_MASK;
+  position_M2 += dir_M2;
+  delayMicroseconds(1);
+  MOTOR_M2_STEP_PORT &= ~(1 << MOTOR_M2_STEP_MASK);
+  // digitalWrite(60, HIGH);
+  // delayMicroseconds(1000);
+  // digitalWrite(60, LOW);
+}
+
+ISR(TIMER5_COMPA_vect)
+{
+  // Serial.println("timer5");
+  // if(dir_M3 == 0) {
+  //   return;
+  // }
+  MOTOR_M3_STEP_PORT |= 1 << MOTOR_M3_STEP_MASK;
+  position_M3 += dir_M3;
+  delayMicroseconds(1);
+  MOTOR_M3_STEP_PORT &= ~(1 << MOTOR_M3_STEP_MASK);
+}
+
+void timerInit() {
+  cli();
+  // timer 3
+  // put your setup code here, to run once:
+  TCCR3A = 0;// set entire TCCR2A register to 0
+  TCCR3B = 0;// same for TCCR2B
+  TCNT3  = 0;//initialize counter value to 0
+  // set compare match register for 10hz increments
+  OCR3A = 1000;// = (16*10^6) / (100*1024) - 1 (must be <256)
+  // turn on CTC mode
+  TCCR3B |= (1 << WGM32);
+  // Set CS21 bit for 8 prescaler
+  TCCR3B |= 1 << CS31;
+  // enable timer compare interrupt
+  TIMSK3 |= (1 << OCIE3A);
+
+  // timer 4
+  TCCR4A = 0;// set entire TCCR2A register to 0
+  TCCR4B = 0;// same for TCCR2B
+  TCNT4  = 0;//initialize counter value to 0
+  // set compare match register for 10hz increments
+  OCR4A = 1000;// = (16*10^6) / (100*1024) - 1 (must be <256)
+  // turn on CTC mode
+  TCCR4B |= (1 << WGM42);
+  // Set CS21 bit for 1024 prescaler
+  TCCR4B |= 1 << CS41;   
+
+  // enable timer compare interrupt
+  TIMSK4 |= (1 << OCIE4A);
+
+  // timer 5
+  TCCR5A = 0;// set entire TCCR2A register to 0
+  TCCR5B = 0;// same for TCCR2B
+  TCNT5  = 0;//initialize counter value to 0
+  // set compare match register for 10hz increments
+  OCR5A = 1000;// = (16*10^6) / (100*1024) - 1 (must be <256)
+  // turn on CTC mode
+  TCCR5B |= (1 << WGM52);
+  // Set CS21 bit for 1024 prescaler
+  TCCR5B |= 1 << CS51;   
+  // enable timer compare interrupt
+  TIMSK5 |= (1 << OCIE5A);
+
+  sei();
 
 }
 
+void timer3Reset(long timerCount) {
+  cli();
+  TCNT3 = 0;
+  OCR3A = timerCount;
+  sei();
+
+}
+
+void timer4Reset(long timerCount) {
+  cli();
+  TCNT4 = 0;
+  OCR4A = timerCount;
+  sei();
+}
+
+void timer5Reset(long timerCount) {
+  cli();
+  TCNT5 = 0;
+  OCR5A = timerCount;
+  sei();
+}
 
 // MOTOR1
 // TC5 interrupt
@@ -230,16 +333,20 @@ void setMotorM1Speed(int16_t tspeed, int16_t dt, int16_t overshoot_comp)
   else if ((speed_M1 > 0) && (dir_M1 != 1)) {
 #ifdef INVERT_M1_AXIS 
     // REG_PORT_OUTCLR0 = PORT_PA20;
+    digitalWrite(MOTOR_M1_DIR, LOW);
 #else
     // REG_PORT_OUTSET0 = PORT_PA20;
+    digitalWrite(MOTOR_M1_DIR, HIGH);
 #endif
     dir_M1 = 1;
   }
   else if ((speed_M1 < 0) && (dir_M1 != -1)){
 #ifdef INVERT_M1_AXIS 
     // REG_PORT_OUTSET0 = PORT_PA20;
+    digitalWrite(MOTOR_M1_DIR, HIGH);
 #else
     // REG_PORT_OUTCLR0 = PORT_PA20;
+    digitalWrite(MOTOR_M1_DIR, LOW);
 #endif
     dir_M1 = -1;
   }
@@ -247,13 +354,14 @@ void setMotorM1Speed(int16_t tspeed, int16_t dt, int16_t overshoot_comp)
   if (speed_M1 == 0)
     timer_period = MINIMUN_TIMER_PERIOD;
   else if (speed_M1 > 0)
-    timer_period = 3000000 / speed_M1;   // 3Mhz timer 
+    // 16000000 / (hz * 8)
+    timer_period = 2000000 / speed_M1;   // 3Mhz timer 
   else
-    timer_period = 3000000 / -speed_M1;
+    timer_period = 2000000 / -speed_M1;
 
   if (timer_period > MINIMUN_TIMER_PERIOD)   // Check for minimun speed (maximun period without overflow)
     timer_period = MINIMUN_TIMER_PERIOD;
-
+  timer3Reset(timer_period);
   // Change timer
   // TODO
   // TC5->COUNT16.CC[0].reg = (uint16_t) timer_period;
@@ -295,28 +403,32 @@ void setMotorM2Speed(int16_t tspeed, int16_t dt, int16_t overshoot_comp)
   else if ((speed_M2 > 0) && (dir_M2 != 1)){
 #ifdef INVERT_M2_AXIS
     // REG_PORT_OUTCLR0 = PORT_PA06; // M2-DIR
+    digitalWrite(MOTOR_M2_DIR, LOW);
 #else
     // REG_PORT_OUTSET0 = PORT_PA06;
+    digitalWrite(MOTOR_M2_DIR, HIGH);
 #endif
     dir_M2 = 1;
   }
   else if ((speed_M2 < 0) && (dir_M2 != -1)){
 #ifdef INVERT_M2_AXIS
     // REG_PORT_OUTSET0 = PORT_PA06;  // M2-DIR 
+    digitalWrite(MOTOR_M2_DIR, HIGH);
 #else
     // REG_PORT_OUTCLR0 = PORT_PA06;
+    digitalWrite(MOTOR_M2_DIR, LOW);
 #endif
     dir_M2 = -1;
   }
   if (speed_M2 == 0)
     timer_period = MINIMUN_TIMER_PERIOD;
   else if (speed_M2 > 0)
-    timer_period = 3000000 / speed_M2; // 3Mhz timer (48Mhz / preescaler=16 = 3Mhz)
+    timer_period = 2000000 / speed_M2; // 3Mhz timer (48Mhz / preescaler=16 = 3Mhz)
   else
-    timer_period = 3000000 / -speed_M2;
+    timer_period = 2000000 / -speed_M2;
   if (timer_period > MINIMUN_TIMER_PERIOD)   // Check for minimun speed (maximun period without overflow)
     timer_period = MINIMUN_TIMER_PERIOD;
-
+  timer4Reset(timer_period);
   // Change timer
   // TODO
   // TC3->COUNT16.CC[0].reg = (uint16_t) timer_period;
@@ -352,28 +464,32 @@ void setMotorM3Speed(int16_t tspeed, int16_t dt, int16_t overshoot_comp)
   else if ((speed_M3 > 0) && (dir_M3 != 1)){
 #ifdef INVERT_M3_AXIS
     // REG_PORT_OUTCLR0 = PORT_PA18; // M3-DIR 
+    digitalWrite(MOTOR_M3_DIR, LOW);
 #else
     // REG_PORT_OUTSET0 = PORT_PA18;
+    digitalWrite(MOTOR_M3_DIR, HIGH);
 #endif
     dir_M3 = 1;
   }
   else if ((speed_M3 < 0) && (dir_M3 != -1)){
 #ifdef INVERT_M3_AXIS
     // REG_PORT_OUTSET0 = PORT_PA18;  // M3-DIR 
+    digitalWrite(MOTOR_M3_DIR, HIGH);
 #else
     // REG_PORT_OUTCLR0 = PORT_PA18;
+    digitalWrite(MOTOR_M3_DIR, LOW);
 #endif
     dir_M3 = -1;
   }
   if (speed_M3 == 0)
     timer_period = MINIMUN_TIMER_PERIOD;
   else if (speed_M3 > 0)
-    timer_period = 3000000 / speed_M3; // 3Mhz timer (48Mhz / preescaler=16 = 3Mhz)
+    timer_period = 2000000 / speed_M3; // 3Mhz timer (48Mhz / preescaler=16 = 3Mhz)
   else
-    timer_period = 3000000 / -speed_M3;
+    timer_period = 2000000 / -speed_M3;
   if (timer_period > MINIMUN_TIMER_PERIOD)   // Check for minimun speed (maximun period without overflow)
     timer_period = MINIMUN_TIMER_PERIOD;
-
+  timer5Reset(timer_period);
   // // Change timer
   // TCC2->CCB[0].reg = timer_period;
   // while (TCC2->STATUS.reg & TC_STATUS_SYNCBUSY); // wait for sync...
@@ -763,7 +879,7 @@ void InverseKinematic(float x, float y, float len1, float len2, uint8_t elbow, f
   dist = distance(x,y);
   if (dist > (ROBOT_ARM1_LENGTH+ROBOT_ARM2_LENGTH)){
     dist = (ROBOT_ARM1_LENGTH+ROBOT_ARM2_LENGTH)-0.001f;
-    Serial.println("IK overflow->limit");
+    // Serial.println("IK overflow->limit");
   }
   D1 = atan2(y,x);   // 140us
   D2 = lawOfCosines(dist, len1, len2);   // 175us
@@ -816,7 +932,7 @@ float move_total_time(float d,float v0,float v1,float a)
   }
 
   if (case_type==1){
-    Serial.print("->C1:");
+    // Serial.print("->C1:");
     return 0; //CASE 1 not usable right now... => exit without correction...
     t_F = v0/a;  // This is really (0-v0)/(-a) because we are decelerating
     //Serial.print(t_F);
@@ -830,19 +946,19 @@ float move_total_time(float d,float v0,float v1,float a)
     d_D_v1 = d_A_v1;
     if ((d_A_v1+d_D_v1)<d){
       // Full trapezoidal movement...
-      Serial.print(" C3:");
+      // Serial.print(" C3:");
       d_FS = d - (d_A_v1+d_D_v1);  // Calculate the total distance that we are at full speed
       t_FS = d_FS/v1;
       t_A = v1/a;
       t_D = t_A;         // Because we start and end at zero speed
       t_F_2 = t_A+t_FS+t_D;
-      Serial.print(t_F_2);
-      Serial.print(" T:");
+      // Serial.print(t_F_2);
+      // Serial.print(" T:");
       t_F += t_F_2;
     }
     else{
       // Triangular movement...
-      Serial.print(" C2:");
+      // Serial.print(" C2:");
       vp = sqrt(a*d);  // simplification because v0=0
       t_A = vp/a;
       t_D = t_A;       // Because we start and end at zero speed
@@ -900,22 +1016,22 @@ void trajectory_motor_speed_adjust()
   int16_t M1_diff,M2_diff;
   int16_t actual_speed_M1,actual_speed_M2;
   
-  Serial.print("->PLAN ");
+  // Serial.print("->PLAN ");
   //long t0 = micros();
   M1_diff = target_position_M1 - position_M1;
   actual_speed_M1 = speed_M1;
   if (sign(M1_diff)!=sign(actual_speed_M1)){
     // Check if speed is low enought to suppose speed=0
     if (myAbs(actual_speed_M1)<(4*target_acceleration_M1)){
-      Serial.print("V1adj ");
-      Serial.print(actual_speed_M1);
+      // Serial.print("V1adj ");
+      // Serial.print(actual_speed_M1);
       actual_speed_M1=0;  // suppose speed=0 and continue with trajectory motor speed adjust
     }
     else{
-      Serial.print("ExitM1 ");
-      Serial.print(M1_diff);
-      Serial.print(",");
-      Serial.println(actual_speed_M1);
+      // Serial.print("ExitM1 ");
+      // Serial.print(M1_diff);
+      // Serial.print(",");
+      // Serial.println(actual_speed_M1);
       return;
     }
   }
@@ -942,15 +1058,15 @@ void trajectory_motor_speed_adjust()
   if (sign(M2_diff)!=sign(actual_speed_M2)){
     // Check if speed is low enought to suppose speed=0
     if (myAbs(actual_speed_M2)<(4*target_acceleration_M2)){
-      Serial.print("V2adj ");
-      Serial.print(actual_speed_M2);
+      // Serial.print("V2adj ");
+      // Serial.print(actual_speed_M2);
       actual_speed_M2=0;  // suppose speed=0 and continue with trajectory motor speed adjust
     }
     else{
-      Serial.print("ExitM2 ");
-      Serial.print(M2_diff);
-      Serial.print(",");
-      Serial.println(actual_speed_M2);
+      // Serial.print("ExitM2 ");
+      // Serial.print(M2_diff);
+      // Serial.print(",");
+      // Serial.println(actual_speed_M2);
       return;
     }
   }
@@ -973,7 +1089,7 @@ void trajectory_motor_speed_adjust()
   t_M2 = move_total_time(M2_diff,actual_speed_M2,target_speed_M2,target_acceleration_M2*1000);
 
   if ((t_M1==t_M2)||(t_M1<0.01)||(t_M2<0.01)){
-    Serial.println("->P Small t!");
+    // Serial.println("->P Small t!");
     return;
   }
     
@@ -981,10 +1097,10 @@ void trajectory_motor_speed_adjust()
   if (t_M1>t_M2){
     // Motor1 is slower so its the master, we adapt motor2...
     factor = t_M2/t_M1;
-    Serial.print("F2:");
-    Serial.print(t_M1);
-    Serial.print(",");
-    Serial.print(t_M2);
+    // Serial.print("F2:");
+    // Serial.print(t_M1);
+    // Serial.print(",");
+    // Serial.print(t_M2);
     // Modify speed and acceleration of motor 2 acording to the time factor
     target_speed_M2 = target_speed_M2*factor;
     target_acceleration_M2 = target_acceleration_M2*factor*factor;
@@ -1009,10 +1125,10 @@ void trajectory_motor_speed_adjust()
   else{
     // Motor2 is slower so its the master, we adapt motor2...
     factor = t_M1/t_M2;
-    Serial.print("F1:");
-    Serial.print(t_M1);
-    Serial.print(",");
-    Serial.print(t_M2);
+    // Serial.print("F1:");
+    // Serial.print(t_M1);
+    // Serial.print(",");
+    // Serial.print(t_M2);
     // Modify speed and acceleration of motor 1 acording to the time factor
     target_speed_M1 = target_speed_M1*factor;
     target_acceleration_M1 = target_acceleration_M1*factor*factor;
@@ -1028,55 +1144,55 @@ void trajectory_motor_speed_adjust()
   //Serial.print(t2-t1);
   //Serial.print(" ");
   //Serial.println(t3-t0);
-  Serial.println();
+  // Serial.println();
 }
 
 // Servos functions...
 void initServo()
 {
-  servo1.attach(3);
-  servo2.attach(4);
-  servo1_ready=true;
-  servo2_ready=true;
+  // servo1.attach(3);
+  // servo2.attach(4);
+  // servo1_ready=true;
+  // servo2_ready=true;
 }
 
 void disableServo1()
 {
-  servo1_ready=false;
-  servo1.detach();
+  // servo1_ready=false;
+  // servo1.detach();
 }
 
 void disableServo2()
 {
-  servo2_ready=false;
-  servo2.detach();
+  // servo2_ready=false;
+  // servo2.detach();
 }
 
 void enableServo1()
 {
-  servo1_ready=true;
-  servo1.attach(3);
+  // servo1_ready=true;
+  // servo1.attach(3);
 }
 
 void enableServo2()
 {
-  servo2_ready=true;
-  servo2.attach(4);
+  // servo2_ready=true;
+  // servo2.attach(4);
 }
 
 
 // move servo1 on OC4B (pin10)
 void moveServo1(int pwm)
 {
-  pwm = constrain(pwm,SERVO1_MIN_PULSEWIDTH,SERVO1_MAX_PULSEWIDTH);
-  servo1.writeMicroseconds(pwm);
-  actual_valueW = pwm;
+  // pwm = constrain(pwm,SERVO1_MIN_PULSEWIDTH,SERVO1_MAX_PULSEWIDTH);
+  // servo1.writeMicroseconds(pwm);
+  // actual_valueW = pwm;
 }
 
 // move servo2 on OC4A (pin13)
 void moveServo2(int pwm)
 {
-  pwm = constrain(pwm,SERVO2_MIN_PULSEWIDTH,SERVO2_MAX_PULSEWIDTH);
-  servo2.writeMicroseconds(pwm);
-  actual_valueG = pwm;
+  // pwm = constrain(pwm,SERVO2_MIN_PULSEWIDTH,SERVO2_MAX_PULSEWIDTH);
+  // servo2.writeMicroseconds(pwm);
+  // actual_valueG = pwm;
 }

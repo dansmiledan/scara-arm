@@ -16,7 +16,7 @@
 // This depends on the pulley teeth and microstepping. For 16/62 33/62 teeth  Microstepping=16 200*16 = 3200/360º = 8.8888888888*7.2803 = 64.713
 #define M2_AXIS_STEPS_PER_UNIT 64.713
 // Steps to mm for axis 3(Z) paso =
-#define M3_AXIS_STEPS_PER_UNIT 396
+#define M3_AXIS_STEPS_PER_UNIT 100
 
 #define AXIS2_AXIS1_correction 33.0/62.0  // Correccion for robot structure (diference between reductions on each axis)
 
@@ -66,11 +66,11 @@
 //#define INVERT_M3_AXIS 1
 
 // Robot
-#define ROBOT_MIN_A1 -120.0
-#define ROBOT_MIN_A2 -140.0
+#define ROBOT_MIN_A1 -110.0
+#define ROBOT_MIN_A2 -120.0
 #define ROBOT_MIN_A3 0
-#define ROBOT_MAX_A1 120.0
-#define ROBOT_MAX_A2 140.0
+#define ROBOT_MAX_A1 110.0
+#define ROBOT_MAX_A2 120.0
 #define ROBOT_MAX_A3 120 // in mm
 #define ROBOT_AXIS_DEFINITION -90*GRAD2RAD //-1.5708 // - 90 degrees of axis rotation for our robot configuration
 
@@ -91,8 +91,8 @@
 //float robot_limits_max[]={ 190, 190, 185, 180, 170, 150, 140, 120, 110, 90, 70,  50,  40};
 //float robot_limits_min[]={ -35, -45, -60,-80,-100,-125,-145,-160,-180,-185,-190,-190,-190};
 
-float robot_limits_min[] = { -140, -140, -140, -140, -140, -140, -140, -130, -120, -110,  -95,  -88};
-float robot_limits_max[] = {  88, 95, 110, 120, 130, 140, 140, 140, 140, 140, 140, 140};
+float robot_limits_min[] = { -120, -120, -120, -120, -120, -120, -120, -110, -110, -100,  -95,  -88};
+float robot_limits_max[] = {  88, 95, 100, 110, 110, 120, 120, 120, 120, 120, 120, 120};
 uint8_t limits_index;
 
 // Initial robot position in angle/mm
@@ -124,6 +124,33 @@ uint8_t limits_index;
 #define GREEN_LED A1
 #define RED_LED A2
 #define SWITCH_IN 30
+
+
+#define MOTOR_M1_STEP 54
+#define MOTOR_M1_STEP_PORT PORTF
+#define MOTOR_M1_STEP_MASK PF0
+#define MOTOR_M1_DIR 55
+#define MOTOR_M1_DIR_PORT PORTF
+#define MOTOR_M1_DIR_MASK PF1
+#define MOTOR_M1_ENABLE 38
+
+
+#define MOTOR_M2_STEP 60
+#define MOTOR_M2_STEP_PORT PORTF
+#define MOTOR_M2_STEP_MASK PF6
+#define MOTOR_M2_DIR 61
+#define MOTOR_M2_DIR_PORT PORTF
+#define MOTOR_M2_DIR_MASK PF7
+#define MOTOR_M2_ENABLE 56
+
+#define MOTOR_M3_STEP 46
+#define MOTOR_M3_STEP_PORT PORTL
+#define MOTOR_M3_STEP_MASK PL3
+#define MOTOR_M3_DIR 48
+#define MOTOR_M3_DIR_PORT PORTL
+#define MOTOR_M3_DIR_MASK PL1
+#define MOTOR_M3_ENABLE 62
+
 
 // Structure definition
 struct angles {
@@ -263,6 +290,7 @@ void moveServo1(int pwm);
 void moveServo2(int pwm);
 void timersConfigure();
 void timersStart();
+void timerInit();
 void configSpeed(int target_sM1, int target_sM2, int target_sM3);
 void configAcceleration(int target_acc1, int target_acc2, int target_acc3);
 void setSpeedAcc();
